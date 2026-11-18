@@ -350,7 +350,9 @@ class TelegramLLMBot:
                 return
 
             # پاک‌سازی تگ ربات از متن سوال کاربر
-            user_text = re.sub(rf"@{re.escape(bot_username)}\b", "", raw_text, flags=re.IGNORECASE).strip()
+            user_text = re.sub(
+                rf"@{re.escape(bot_username)}\b", "", raw_text, flags=re.IGNORECASE
+            ).strip()
             if not user_text:
                 if is_reply_to_bot and update.message.reply_to_message.text:
                     user_text = "در مورد پیام بالا نظرت چیه؟"

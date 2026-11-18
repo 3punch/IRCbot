@@ -94,6 +94,7 @@ async def test_handle_callback_persona(sample_settings, memory_manager):
 @pytest.mark.asyncio
 async def test_group_message_ignored_without_tag(sample_settings, memory_manager):
     from telegram import constants
+
     bot = TelegramLLMBot(settings=sample_settings, memory=memory_manager)
     chat_id = -1001234567
 
@@ -122,6 +123,7 @@ async def test_group_message_replied_with_tag(sample_settings, memory_manager):
     from unittest.mock import patch
 
     from telegram import constants
+
     bot = TelegramLLMBot(settings=sample_settings, memory=memory_manager)
     chat_id = -1001234567
 

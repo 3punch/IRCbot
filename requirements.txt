@@ -1,0 +1,19 @@
+# ==============================================================================
+# Telegram Local LLM Bot — Dependencies
+# ==============================================================================
+
+# Telegram Bot Framework (modern async)
+python-telegram-bot==21.4
+
+# HTTP & API clients
+requests==2.32.3
+httpx==0.28.1
+
+# Configuration & Data Validation
+pydantic==2.8.2
+pydantic-settings==2.4.0
+python-dotenv==1.0.1
+
+# Testing & Quality Assurance (Dev)
+pytest==9.2.0
+pytest-asyncio==1.5.0

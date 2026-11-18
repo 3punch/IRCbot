@@ -2,7 +2,7 @@ from src.config import Settings
 
 
 def test_default_settings():
-    settings = Settings()
+    settings = Settings(_env_file=None)
     assert settings.ollama_host == "http://127.0.0.1:11434"
     assert settings.model_name == "qwen2.5:14b"
     assert settings.temperature == 0.7
@@ -14,7 +14,7 @@ def test_default_settings():
 
 
 def test_settings_trailing_slash_strip():
-    settings = Settings(ollama_host="http://localhost:11434/")
+    settings = Settings(ollama_host="http://localhost:11434/", _env_file=None)
     assert settings.ollama_host == "http://localhost:11434"
 
 
@@ -25,6 +25,7 @@ def test_settings_custom_values():
         temperature=0.3,
         max_tokens=4096,
         max_history_turns=10,
+        _env_file=None,
     )
     assert settings.telegram_bot_token == "test-token"
     assert settings.model_name == "deepseek-r1:8b"

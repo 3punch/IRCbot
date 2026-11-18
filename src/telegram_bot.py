@@ -45,9 +45,31 @@ class TelegramLLMBot:
         self.memory = memory
         self.app: Application | None = None
 
+    async def _auto_stop(self, app: Application, minutes: float) -> None:
+        """خاموش‌سازی تمیز ربات پس از مدت مشخص (برای چرخش بین Jobهای GitHub Actions)."""
+        await asyncio.sleep(minutes * 60)
+        log.info("زمان اجرای برنامه‌ریزی‌شده (%.0f دقیقه) به پایان رسید؛ خاموش‌سازی تمیز...", minutes)
+        if app.updater and app.updater.running:
+            await app.updater.stop()
+        await app.stop()
+
+    async def _post_init(self, app: Application) -> None:
+        """تنظیم کارهای اولیه پس از ساخت اپلیکیشن."""
+        if self.settings.run_duration_minutes > 0:
+            app.create_task(self._auto_stop(app, self.settings.run_duration_minutes))
+            log.info(
+                "ربات برای مدت %.0f دقیقه اجرا می‌شود و سپس جایش را به نوبت بعدی Actions می‌دهد.",
+                self.settings.run_duration_minutes,
+            )
+
     def build_application(self) -> Application:
         """ساخت و پیکربندی اپلیکیشن ربات تلگرام."""
-        app = ApplicationBuilder().token(self.settings.telegram_bot_token).build()
+        app = (
+            ApplicationBuilder()
+            .token(self.settings.telegram_bot_token)
+            .post_init(self._post_init)
+            .build()
+        )
 
         # ثبت دستورات
         app.add_handler(CommandHandler("start", self.cmd_start))

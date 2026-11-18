@@ -27,6 +27,7 @@ def sample_settings(temp_state_dir):
         max_history_turns=5,
         default_persona="general",
         state_dir=temp_state_dir,
+        _env_file=None,
     )
 
 

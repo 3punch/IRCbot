@@ -1,0 +1,138 @@
+name: Run Telegram Bot 24/7
+
+# ==============================================================================
+# اجرای ۲۴ ساعته و رایگان ربات تلگرام روی سرورهای GitHub Actions:
+# - نصب خودکار پایتون و موتور هوش مصنوعی Ollama روی سرور اوبونتو
+# - کش کردن مدل زبانی (Qwen 2.5 / DeepSeek-R1) برای عدم نیاز به دانلود مکرر
+# - زمان‌بندی هر ۵ ساعت (cron) همراه با concurrency بدون وقفه (zero downtime)
+# - اجرای ناظر (supervisor) جهت راه‌اندازی مجدد خودکار در صورت بروز خطا
+# ==============================================================================
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 */5 * * *'
+  workflow_dispatch:
+
+# فقط یک نمونه هم‌زمان؛ نمونه بعدی در صف انتظار می‌ماند تا بلافاصله جایگزین شود
+concurrency:
+  group: telegram-bot
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350          # سقف قانونی گیت‌هاب اکشنز ۳۶۰ دقیقه است
+    env:
+      # مدل متناسب با رم ۷ گیگابایت سرورهای رایگان گیت‌هاب (فارسی عالی، استدلال و کدنویسی قوی)
+      MODEL_NAME: qwen2.5:7b
+      OLLAMA_HOST: http://127.0.0.1:11434
+      OLLAMA_KEEP_ALIVE: 6h
+      NUM_CTX: "4096"
+      MAX_TOKENS: "1024"
+      TEMPERATURE: "0.7"
+      MAX_HISTORY_TURNS: "15"
+      BOT_RUN_MINUTES: "320"      # هر ران ۵ ساعت و ۲۰ دقیقه کار می‌کند
+      BOT_JOB_MINUTES: "335"      # کل عمر این جاب حداکثر ۵ ساعت و ۳۵ دقیقه
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Resolve model cache key
+        id: model_key
+        run: |
+          key=$(echo "$MODEL_NAME" | tr ':.@/' '----')
+          echo "key=ollama-$key" >> "$GITHUB_OUTPUT"
+          echo "کلید کش مدل: ollama-$key"
+
+      - name: Restore model from cache
+        id: model_cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ${{ steps.model_key.outputs.key }}-v1
+          restore-keys: |
+            ${{ steps.model_key.outputs.key }}-
+            ollama-
+
+      - name: Install Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama --version
+
+      - name: Start Ollama and verify model
+        env:
+          CACHE_HIT: ${{ steps.model_cache.outputs.cache-hit }}
+        run: |
+          set -u
+          mkdir -p ~/.ollama
+          nohup ollama serve > /tmp/ollama.log 2>&1 &
+          
+          # انتظار برای آماده شدن سرویس اولاما
+          for i in $(seq 1 60); do
+            curl -fsS "$OLLAMA_HOST/api/tags" > /dev/null 2>&1 && break
+            sleep 2
+          done
+
+          if ! curl -fsS "$OLLAMA_HOST/api/tags" > /dev/null 2>&1; then
+            echo "::error::سرویس Ollama بالا نیامد!"
+            tail -50 /tmp/ollama.log || true
+            exit 1
+          fi
+          echo "✅ Ollama با موفقیت آماده شد."
+
+          # بررسی وجود مدل در سیستم
+          if ollama list | awk '{print $1}' | grep -qx "$MODEL_NAME"; then
+            echo "✅ مدل «$MODEL_NAME» از کش موجود است (cache-hit=$CACHE_HIT)."
+          else
+            echo "⬇️ در حال دانلود مدل $MODEL_NAME..."
+            ollama pull "$MODEL_NAME"
+          fi
+          ollama list
+
+          # پیش‌گرمایش مدل در حافظه RAM
+          curl -fsS "$OLLAMA_HOST/api/generate" \
+            -d "{\"model\":\"$MODEL_NAME\",\"prompt\":\"سلام\",\"stream\":false,\"options\":{\"num_predict\":8}}" \
+            > /dev/null 2>&1 && echo "✅ مدل در رم بارگذاری شد." || true
+
+      - name: Run Tests
+        run: |
+          pytest tests/ -v
+
+      - name: Check Telegram Bot Token Secret
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ]; then
+            echo "::error::لطفاً متغیر Secret با نام TELEGRAM_BOT_TOKEN را در تنظیمات ریپازیتوری اضافه کنید."
+            echo "آدرس: https://github.com/${{ github.repository }}/settings/secrets/actions"
+            exit 1
+          fi
+
+      - name: Run Telegram Bot 24/7
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          CHECK_UPDATES: "1"
+        run: bash scripts/run_bot.sh
+
+      - name: Show Ollama logs on failure
+        if: failure()
+        run: tail -50 /tmp/ollama.log || true

@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     # لاگ‌ها
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
+    # مدت زمان اجرای ربات به دقیقه (صفر = بدون محدودیت، برای اجرای ۲۴ ساعته روی GitHub Actions)
+    run_duration_minutes: float = Field(default=0.0, alias="RUN_DURATION_MINUTES")
+
     # تنظیمات کلاینت IRC
     irc_enabled: bool = Field(default=False, alias="IRC_ENABLED")
     irc_server: str = Field(default="irc.libera.chat", alias="IRC_SERVER")

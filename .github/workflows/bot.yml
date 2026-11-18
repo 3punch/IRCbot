@@ -35,6 +35,7 @@ jobs:
       NUM_CTX: "4096"
       MAX_TOKENS: "1024"
       TEMPERATURE: "0.4"
+      DEFAULT_PERSONA: "joker"
       MAX_HISTORY_TURNS: "15"
       BOT_RUN_MINUTES: "320"      # هر ران ۵ ساعت و ۲۰ دقیقه کار می‌کند
       BOT_JOB_MINUTES: "335"      # کل عمر این جاب حداکثر ۵ ساعت و ۳۵ دقیقه

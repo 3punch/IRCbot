@@ -7,6 +7,7 @@ def test_default_settings(monkeypatch):
     monkeypatch.delenv("MODEL_NAME", raising=False)
     monkeypatch.delenv("OLLAMA_HOST", raising=False)
     monkeypatch.delenv("TEMPERATURE", raising=False)
+    monkeypatch.delenv("DEFAULT_PERSONA", raising=False)
     monkeypatch.delenv("MAX_HISTORY_TURNS", raising=False)
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     settings = Settings(_env_file=None)

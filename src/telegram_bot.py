@@ -31,6 +31,7 @@ from src.llm import (
     OllamaModelNotFoundError,
     OllamaTimeoutError,
     chat_generate,
+    check_ollama_health,
     get_available_models,
 )
 from src.memory import MemoryManager
@@ -54,7 +55,29 @@ class TelegramLLMBot:
         await app.stop()
 
     async def _post_init(self, app: Application) -> None:
-        """تنظیم کارهای اولیه پس از ساخت اپلیکیشن."""
+        """تنظیم کارهای اولیه پس از ساخت اپلیکیشن و راه‌اندازی Event Loop."""
+        # بررسی اتصال اولیه به Ollama
+        try:
+            is_alive = await check_ollama_health(self.settings.ollama_host)
+            if not is_alive:
+                log.warning(
+                    "⚠️ هشدار: سرویس اولاما در %s در دسترس نیست! "
+                    "ربات اجرا می‌شود، اما برای دریافت پاسخ باید سرویس Ollama در حال اجرا باشد.",
+                    self.settings.ollama_host,
+                )
+            else:
+                models = await get_available_models(self.settings.ollama_host)
+                log.info("✅ اتصال به Ollama برقرار است. مدل‌های یافت‌شده: %s", models)
+                if self.settings.model_name not in models:
+                    log.warning(
+                        "⚠️ توجه: مدل '%s' در اولاما دانلود نشده است. "
+                        "می‌توانید با دستور `ollama pull %s` آن را دریافت کنید.",
+                        self.settings.model_name,
+                        self.settings.model_name,
+                    )
+        except Exception as exc:
+            log.warning("بررسی اولیه Ollama با خطا مواجه شد: %s", exc)
+
         if self.settings.run_duration_minutes > 0:
             app.create_task(self._auto_stop(app, self.settings.run_duration_minutes))
             log.info(

@@ -10,13 +10,19 @@ import asyncio
 import sys
 
 from src.config import get_settings
-from src.llm import check_ollama_health, get_available_models
 from src.logging_config import setup_logging
 from src.memory import MemoryManager
 from src.telegram_bot import TelegramLLMBot
 
 
 def main() -> None:
+    # تضمین وجود Event Loop فعال در Thread اصلی (مخصوصاً در پایتون ۳.۱۱+)
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
     settings = get_settings()
     logger = setup_logging(settings.log_level)
 
@@ -36,30 +42,6 @@ def main() -> None:
             "برای نمونه به .env.example مراجعه فرمایید."
         )
         sys.exit(1)
-
-    # بررسی اولیه ارتباط با Ollama
-    async def preflight_check():
-        is_alive = await check_ollama_health(settings.ollama_host)
-        if not is_alive:
-            logger.warning(
-                "⚠️ هشدار: سرویس اولاما در %s در دسترس نیست!\n"
-                "ربات اجرا می‌شود، اما برای دریافت پاسخ باید `ollama serve` فعال باشد.",
-                settings.ollama_host,
-            )
-        else:
-            models = await get_available_models(settings.ollama_host)
-            logger.info("✅ اتصال به Ollama برقرار است. مدل‌های یافت‌شده: %s", models)
-            if settings.model_name not in models:
-                logger.warning(
-                    "⚠️ توجه: مدل '%s' در اولاما دانلود نشده است. می‌توانید با دستور `ollama pull %s` آن را دریافت کنید.",
-                    settings.model_name,
-                    settings.model_name,
-                )
-
-    try:
-        asyncio.run(preflight_check())
-    except Exception as exc:
-        logger.warning("بررسی اولیه Ollama با خطا مواجه شد: %s", exc)
 
     # راه‌اندازی انبار حافظه
     memory = MemoryManager(

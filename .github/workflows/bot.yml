@@ -34,7 +34,7 @@ jobs:
       OLLAMA_KEEP_ALIVE: 6h
       NUM_CTX: "4096"
       MAX_TOKENS: "1024"
-      TEMPERATURE: "0.7"
+      TEMPERATURE: "0.4"
       MAX_HISTORY_TURNS: "15"
       BOT_RUN_MINUTES: "320"      # هر ران ۵ ساعت و ۲۰ دقیقه کار می‌کند
       BOT_JOB_MINUTES: "335"      # کل عمر این جاب حداکثر ۵ ساعت و ۳۵ دقیقه
@@ -139,6 +139,9 @@ jobs:
       - name: Run Telegram Bot 24/7
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          API_KEY: ${{ secrets.GROQ_API_KEY || secrets.API_KEY || '' }}
+          API_MODEL: ${{ vars.API_MODEL || 'llama-3.3-70b-versatile' }}
+          API_BASE_URL: ${{ vars.API_BASE_URL || 'https://api.groq.com/openai/v1' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           CHECK_UPDATES: "1"

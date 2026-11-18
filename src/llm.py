@@ -81,22 +81,75 @@ async def get_available_models(host: str, timeout: float = 10.0) -> list[str]:
         return []
 
 
+async def chat_generate_api(
+    base_url: str,
+    api_key: str,
+    model: str,
+    messages: list[dict[str, str]],
+    *,
+    temperature: float = 0.4,
+    max_tokens: int = 2048,
+    timeout: int = 60,
+) -> tuple[str, str | None, dict[str, Any]]:
+    """ارسال ناهمگام به APIهای پرسرعت ابری (مانند Groq یا OpenRouter برای سرعت زیر ثانیه)."""
+    url = f"{base_url.rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    client_timeout = httpx.Timeout(connect=10.0, read=float(timeout), write=10.0, pool=10.0)
+    async with httpx.AsyncClient(timeout=client_timeout) as client:
+        res = await client.post(url, json=payload, headers=headers)
+        if res.status_code != 200:
+            raise LLMError(f"خطا در فراخوانی API ابری (کد {res.status_code}): {res.text}")
+        data = res.json()
+        raw_content = data["choices"][0]["message"]["content"]
+        thinking, final_answer = extract_thinking(raw_content)
+        return final_answer, thinking, {"source": "api", "model": model}
+
+
 async def chat_generate(
     host: str,
     model: str,
     messages: list[dict[str, str]],
     *,
-    temperature: float = 0.7,
+    temperature: float = 0.4,
     top_p: float = 0.9,
     max_tokens: int = 2048,
     num_ctx: int = 8192,
     timeout: int = 300,
     keep_alive: str = "2h",
+    api_key: str = "",
+    api_base_url: str = "",
+    api_model: str = "",
 ) -> tuple[str, str | None, dict[str, Any]]:
     """
-    ارسال پیام‌ها به Ollama و دریافت پاسخ به صورت ناهمگام (Async).
-    خروجی: (پاسخ نهایی، تفکر استدلالی در صورت وجود، آمار پاسخ مانند توکن‌ها و زمان)
+    ارسال پیام‌ها به مدل و دریافت پاسخ به صورت ناهمگام (Async).
+    در صورت تنظیم API_KEY، ابتدا از API فوق سریع استفاده می‌شود و در صورت خطا به اولاما منتقل می‌شود.
     """
+    if api_key:
+        try:
+            target_api_model = api_model or "llama-3.3-70b-versatile"
+            target_base_url = api_base_url or "https://api.groq.com/openai/v1"
+            log.info("ارسال درخواست به API ابری پرسرعت (%s)...", target_api_model)
+            return await chat_generate_api(
+                base_url=target_base_url,
+                api_key=api_key,
+                model=target_api_model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                timeout=min(timeout, 60),
+            )
+        except Exception as exc:
+            log.warning("فراخوانی API ابری ناموفق بود (%s)؛ انتقال به Ollama محلی...", exc)
+
     url = f"{host}/api/chat"
     payload = {
         "model": model,

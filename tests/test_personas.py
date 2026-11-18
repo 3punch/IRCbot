@@ -6,6 +6,7 @@ def test_personas_exist():
     assert len(personas) >= 5
     ids = [p.id for p in personas]
     assert "general" in ids
+    assert "joker" in ids
     assert "coder" in ids
     assert "creative" in ids
     assert "academic" in ids

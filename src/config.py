@@ -30,12 +30,17 @@ class Settings(BaseSettings):
     model_name: str = Field(default="qwen2.5:14b", alias="MODEL_NAME")
 
     # پارامترهای تولید متن
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0, alias="TEMPERATURE")
+    temperature: float = Field(default=0.4, ge=0.0, le=2.0, alias="TEMPERATURE")
     top_p: float = Field(default=0.9, ge=0.0, le=1.0, alias="TOP_P")
     max_tokens: int = Field(default=2048, ge=64, le=32768, alias="MAX_TOKENS")
     num_ctx: int = Field(default=8192, ge=512, le=65536, alias="NUM_CTX")
     llm_timeout: int = Field(default=300, ge=10, le=1800, alias="LLM_TIMEOUT")
     ollama_keep_alive: str = Field(default="2h", alias="OLLAMA_KEEP_ALIVE")
+
+    # کلید اختیاری API ابری پرسرعت (مانند Groq یا OpenRouter برای سرعت زیر ثانیه)
+    api_key: str = Field(default="", alias="API_KEY")
+    api_base_url: str = Field(default="https://api.groq.com/openai/v1", alias="API_BASE_URL")
+    api_model: str = Field(default="llama-3.3-70b-versatile", alias="API_MODEL")
 
     # حافظه گفتگو
     max_history_turns: int = Field(default=15, ge=1, le=100, alias="MAX_HISTORY_TURNS")

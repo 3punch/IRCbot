@@ -6,11 +6,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 
 from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Update,
+    constants,
 )
 from telegram.constants import ChatAction, ParseMode
 from telegram.error import BadRequest
@@ -311,10 +313,56 @@ class TelegramLLMBot:
         if not update.message or not update.message.text:
             return
 
-        chat_id = update.effective_chat.id
-        user_text = update.message.text.strip()
-        if not user_text:
+        chat = update.effective_chat
+        chat_id = chat.id
+        raw_text = update.message.text.strip()
+        if not raw_text:
             return
+
+        is_group = chat.type in (constants.ChatType.GROUP, constants.ChatType.SUPERGROUP)
+        bot_user = context.bot
+        bot_username = bot_user.username or ""
+
+        # در گروه‌ها: فقط زمانی پاسخ بده که ربات تگ (منشن) شده باشد یا به پیام ربات ریپلای شده باشد
+        if is_group:
+            is_reply_to_bot = (
+                update.message.reply_to_message is not None
+                and update.message.reply_to_message.from_user is not None
+                and update.message.reply_to_message.from_user.id == bot_user.id
+            )
+
+            has_mention = False
+            if bot_username:
+                mention_pattern = rf"@{re.escape(bot_username)}\b"
+                has_mention = bool(re.search(mention_pattern, raw_text, re.IGNORECASE))
+
+            # همچنین بررسی entityهای منشن تلگرام
+            if not has_mention and update.message.entities:
+                for entity in update.message.entities:
+                    if entity.type == constants.MessageEntityType.MENTION:
+                        ent_text = raw_text[entity.offset : entity.offset + entity.length]
+                        if bot_username and ent_text.lstrip("@").lower() == bot_username.lower():
+                            has_mention = True
+                            break
+
+            # اگر نه تگ شده و نه ریپلای روی ربات است، پیام گروه را نادیده بگیر
+            if not (has_mention or is_reply_to_bot):
+                return
+
+            # پاک‌سازی تگ ربات از متن سوال کاربر
+            user_text = re.sub(rf"@{re.escape(bot_username)}\b", "", raw_text, flags=re.IGNORECASE).strip()
+            if not user_text:
+                if is_reply_to_bot and update.message.reply_to_message.text:
+                    user_text = "در مورد پیام بالا نظرت چیه؟"
+                else:
+                    await self._send_safe_message(
+                        update,
+                        "جونم؟ صدام زدی؟ 🤡 بگو در خدمتم!",
+                        reply_to_message_id=update.message.message_id,
+                    )
+                    return
+        else:
+            user_text = raw_text
 
         # افزودن پیام کاربر به حافظه
         self.memory.add_user_message(chat_id, user_text)
@@ -353,6 +401,9 @@ class TelegramLLMBot:
                 num_ctx=self.settings.num_ctx,
                 timeout=self.settings.llm_timeout,
                 keep_alive=self.settings.ollama_keep_alive,
+                api_key=self.settings.api_key,
+                api_base_url=self.settings.api_base_url,
+                api_model=self.settings.api_model,
             )
 
             # ثبت پاسخ دستیار در حافظه
@@ -365,10 +416,15 @@ class TelegramLLMBot:
                 show_thinking=self.settings.show_thinking,
             )
 
-            # ارسال پیام به کاربر (با مدیریت سقف طول پیام تلگرام)
+            # ارسال پیام به کاربر (در گروه‌ها با ریپلای روی پیام کاربر)
             chunks = split_message(full_reply)
-            for chunk in chunks:
-                await self._send_safe_message(update, chunk)
+            reply_to_id = update.message.message_id if is_group else None
+            for idx, chunk in enumerate(chunks):
+                await self._send_safe_message(
+                    update,
+                    chunk,
+                    reply_to_message_id=(reply_to_id if idx == 0 else None),
+                )
 
         except OllamaConnectionError as exc:
             err_msg = (
@@ -414,6 +470,7 @@ class TelegramLLMBot:
         update: Update,
         text: str,
         reply_markup: InlineKeyboardMarkup | None = None,
+        reply_to_message_id: int | None = None,
     ) -> None:
         """
         ارسال امن پیام با تلاش اولیه با فرمت Markdown و در صورت بروز خطا با متن ساده.
@@ -428,6 +485,7 @@ class TelegramLLMBot:
                 text=text,
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=reply_markup,
+                reply_to_message_id=reply_to_message_id,
                 disable_web_page_preview=True,
             )
         except BadRequest as e:
@@ -438,6 +496,7 @@ class TelegramLLMBot:
                     text=text,
                     parse_mode=None,
                     reply_markup=reply_markup,
+                    reply_to_message_id=reply_to_message_id,
                     disable_web_page_preview=True,
                 )
             except Exception as final_e:

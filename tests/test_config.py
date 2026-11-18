@@ -12,7 +12,7 @@ def test_default_settings(monkeypatch):
     settings = Settings(_env_file=None)
     assert settings.ollama_host == "http://127.0.0.1:11434"
     assert settings.model_name == "qwen2.5:14b"
-    assert settings.temperature == 0.7
+    assert settings.temperature == 0.4
     assert settings.max_tokens == 2048
     assert settings.num_ctx == 8192
     assert settings.max_history_turns == 15

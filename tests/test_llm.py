@@ -123,3 +123,28 @@ async def test_chat_generate_timeout():
                 messages=[{"role": "user", "content": "سلام"}],
                 timeout=1,
             )
+
+
+@pytest.mark.asyncio
+async def test_chat_generate_api_success():
+    api_mock_data = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": "پاسخ سریع با هوش ابری!",
+                }
+            }
+        ]
+    }
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = httpx.Response(200, json=api_mock_data)
+        answer, thinking, stats = await chat_generate(
+            host="http://localhost:11434",
+            model="qwen2.5:14b",
+            messages=[{"role": "user", "content": "سلام"}],
+            api_key="gsk_test123",
+            api_model="llama-3.3-70b-versatile",
+        )
+        assert answer == "پاسخ سریع با هوش ابری!"
+        assert stats["source"] == "api"
